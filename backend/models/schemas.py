@@ -1,20 +1,14 @@
 from pydantic import BaseModel
-from typing import Optional
-
-class SearchRequest(BaseModel):
-    keyword: str
-    limit: int = 10
-    use_ai: bool = True          # AI keyword enhancement toggle
-    sort_by: str = "relevancy"   # relevancy | price | sold
+from typing import List, Optional
 
 class Product(BaseModel):
     item_id: int
     shop_id: int
     name: str
-    price: float                 # VND
-    original_price: Optional[float]
-    discount_percent: Optional[int]
-    rating: Optional[float]
+    price: float
+    original_price: Optional[float] = None
+    discount_percent: Optional[int] = None
+    rating: float
     sold: int
     stock: int
     image_url: str
@@ -22,11 +16,16 @@ class Product(BaseModel):
     shop_name: str
     location: str
     is_official_shop: bool
-    score: Optional[float]       # AI ranking score
+    score: Optional[float] = None
+
+class SearchRequest(BaseModel):
+    keyword: str
+    use_ai: Optional[bool] = True
+    sort_by: Optional[str] = "relevancy"
+    limit: Optional[int] = 10
 
 class SearchResponse(BaseModel):
     keyword_original: str
-    keyword_enhanced: Optional[str]
+    keyword_enhanced: str
     total_found: int
-    products: list[Product]
-    search_time_ms: int
+    top_products: List[Product]
