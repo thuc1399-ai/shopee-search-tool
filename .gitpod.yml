@@ -1,0 +1,21 @@
+# Cấu hình tự động khởi chạy khi mở môi trường Gitpod
+tasks:
+  - name: Khởi chạy Shopee Search Tool
+    init: |
+      echo "ĐANG KHỞI TẠO HỆ THỐNG DOCKER "
+    command: |
+      # Tự động copy file env mẫu nếu chưa có
+      cp .env.example .env
+      # Khởi chạy Docker Compose
+      docker-compose up -d --build
+      echo "=== HỆ THỐNG ĐÃ SẴN SÀNG ==="
+      echo "Frontend đang chạy tại cổng 3000"
+      echo "Backend đang chạy tại cổng 8000"
+
+ports:
+  - port: 3000
+    onOpen: notify
+    visibility: public
+  - port: 8000
+    onOpen: ignore
+    visibility: public
