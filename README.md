@@ -18,7 +18,7 @@ Tìm kiếm sản phẩm Shopee với AI tối ưu từ khóa, sắp xếp theo 
 - Data: JSONL (offline) → API → UI
 
 ## Dataset
-Mặc định sử dụng file mẫu: `data/shopee_sample.jsonl`.
+Mặc định sử dụng file mẫu: `data/shopee_sample.jsonl`. Được trích dẫn từ data mẫu : [kaggle](https://www.kaggle.com/datasets/yoongsin/shopee-sample-data?select=20240121_shopee_sample_data+%281%29.csv)
 Nếu bạn có dữ liệu thật, đặt biến môi trường `DATA_JSONL_PATH` trỏ tới file JSONL của bạn.
 
 ## Cài đặt nhanh (Local)
@@ -75,3 +75,8 @@ curl -X POST http://localhost:8000/api/v1/search \
 ## Ghi chú
 - `google/flan-t5-large` tải lần đầu khoảng 3.1GB.
 - Dữ liệu mẫu đã được quy đổi USD → VND trong backend.
+## Demo 
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/thuc1399-ai/shopee-search-tool)
+
+## Video Demo : 
+[Screencast from 29-05-2026 12:38:34.webm](https://github.com/user-attachments/assets/dd14a6bd-3fae-4e65-927a-f18fb5c04e54)
