@@ -19,7 +19,7 @@ from typing import Optional
 from deep_translator import GoogleTranslator
 from transformers import pipeline
 
-MODEL_NAME = "google/flan-t5-large"
+MODEL_NAME = "google/flan-t5-small" # Sử dụng bản "google/flan-t5-large" nếu tải về để có kết quả tối ưu hơn 
 _pipeline: Optional[object] = None
 
 # ─────────────────────────────────────────────
