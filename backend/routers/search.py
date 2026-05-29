@@ -1,9 +1,9 @@
 import time
 from fastapi import APIRouter, HTTPException
-from models.schemas import SearchRequest, SearchResponse
-from services.shopee import fetch_top_products
-from services.ai_enhancer import enhance_keyword
-from services.ranker import rank_products
+from backend.models.schemas import SearchRequest, SearchResponse
+from backend.services.shopee import fetch_top_products
+from backend.services.ai_enhancer import enhance_keyword
+from backend.services.ranker import rank_products
 
 router = APIRouter()
 
@@ -32,8 +32,9 @@ async def search_products(req: SearchRequest):
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    # Step 3: AI-powered re-ranking
-    products = rank_products(products)
+    # Step 3: AI-powered re-ranking (only for relevancy)
+    if req.sort_by == "relevancy":
+        products = rank_products(products)
 
     elapsed_ms = int((time.time() - start) * 1000)
 

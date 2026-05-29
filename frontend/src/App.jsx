@@ -18,7 +18,7 @@ export default function App() {
       const data = await searchProducts({ keyword, useAI, sortBy });
       setResult(data);
     } catch (e) {
-      setError("Không thể tải kết quả. Vui lòng thử lại.");
+      setError(e?.message || "Không thể tải kết quả. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
@@ -54,7 +54,7 @@ export default function App() {
               disabled={loading}
               className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-semibold transition-colors disabled:opacity-50"
             >
-              {loading ? "⏳ Đang tìm..." : "🔍 Tìm kiếm"}
+              {loading ? " Đang tìm..." : "🔍 Tìm kiếm"}
             </button>
           </div>
 
@@ -75,7 +75,7 @@ export default function App() {
               className="border border-gray-200 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
             >
               <option value="relevancy">Liên quan nhất</option>
-              <option value="sales">Bán chạy nhất</option>
+              <option value="sold">Bán chạy nhất</option>
               <option value="price">Giá thấp nhất</option>
             </select>
           </div>

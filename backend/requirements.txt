@@ -1,1 +1,8 @@
-# TODO
+fastapi
+uvicorn
+httpx
+pydantic
+python-dotenv
+transformers
+torch
+sentencepiece

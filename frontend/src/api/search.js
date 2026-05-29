@@ -1,11 +1,29 @@
-const BASE = "http://localhost:8000/api/v1";
+const API_BASE_URL = "/api/v1";
 
-export async function searchProducts({ keyword, useAI = true, sortBy = "relevancy" }) {
-  const res = await fetch(`${BASE}/search`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ keyword, use_ai: useAI, sort_by: sortBy, limit: 10 }),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
+export const searchProducts = async ({ keyword, useAI, sortBy, limit = 10 }) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/search`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                keyword,
+                use_ai: useAI,
+                sort_by: sortBy,
+                limit,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            const message = errorData?.detail || "Lỗi kết nối đến server";
+            throw new Error(message);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Search API Error:", error);
+        throw error;
+    }
+};

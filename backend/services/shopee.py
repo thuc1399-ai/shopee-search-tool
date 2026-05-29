@@ -1,85 +1,119 @@
-import httpx
-import asyncio
-from typing import Optional
-from models.schemas import Product
-from utils.headers import get_headers
+import json
+import os
+from pathlib import Path
 
-SHOPEE_SEARCH_URL = "https://shopee.vn/api/v4/search/search_items"
-SHOPEE_ITEM_BASE = "https://shopee.vn/product/{shop_id}/{item_id}"
-SHOPEE_IMAGE_BASE = "https://down-vn.img.susercontent.com/file/{image}"
+from dotenv import load_dotenv
+
+from backend.models.schemas import Product
+
+load_dotenv()
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATA_JSONL_PATH = Path(
+    os.getenv("DATA_JSONL_PATH", str(REPO_ROOT / "data" / "shopee_sample.jsonl"))
+)
+USD_TO_VND_RATE = float(os.getenv("USD_TO_VND_RATE", "25000"))
+
+
+def _to_vnd(value: float) -> float:
+    return round(value * USD_TO_VND_RATE, 0)
+
+
+def _sort_products(products: list[Product], sort_by: str) -> list[Product]:
+    if sort_by == "price":
+        return sorted(
+            products,
+            key=lambda p: p.price if p.price and p.price > 0 else float("inf")
+        )
+    if sort_by in {"sold", "sales"}:
+        return sorted(products, key=lambda p: p.sold, reverse=True)
+    return products
 
 async def fetch_top_products(
     keyword: str,
     limit: int = 10,
     sort_by: str = "relevancy"
 ) -> list[Product]:
-    params = {
-        "by": sort_by,
-        "keyword": keyword,
-        "limit": limit,
-        "newest": 0,
-        "order": "desc",
-        "page_type": "search",
-        "scenario": "PAGE_GLOBAL_SEARCH",
-        "version": 2,
-        "fe_categoryids": "",
-    }
+    
+    products: list[Product] = []
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        try:
-            resp = await client.get(
-                SHOPEE_SEARCH_URL,
-                params=params,
-                headers=get_headers()
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        except httpx.HTTPError as e:
-            raise RuntimeError(f"Shopee API error: {e}")
-
-    items = data.get("items", []) or []
-    products = []
-
-    for raw in items[:limit]:
-        item = raw.get("item_basic", {})
-        price_raw = item.get("price", 0)
-        price_max_raw = item.get("price_max", 0)
-        original_raw = item.get("price_before_discount", 0)
-
-        price = price_raw / 100000         # Shopee prices in units/100000
-        original = original_raw / 100000 if original_raw else None
-        discount = item.get("discount", None)
-        if discount:
-            try:
-                discount = int(discount.replace("%", ""))
-            except Exception:
-                discount = None
-
-        images = item.get("images", [])
-        image_url = (
-            f"{SHOPEE_IMAGE_BASE.format(image=images[0])}"
-            if images else ""
+    if not DATA_JSONL_PATH.exists():
+        raise FileNotFoundError(
+            "Không tìm thấy file dữ liệu. Hãy set DATA_JSONL_PATH hoặc kiểm tra file mẫu."
         )
 
-        products.append(Product(
-            item_id=item.get("itemid", 0),
-            shop_id=item.get("shopid", 0),
-            name=item.get("name", ""),
-            price=price,
-            original_price=original,
-            discount_percent=discount,
-            rating=round(item.get("item_rating", {}).get("rating_star", 0), 1),
-            sold=item.get("historical_sold", 0),
-            stock=item.get("stock", 0),
-            image_url=image_url,
-            product_url=SHOPEE_ITEM_BASE.format(
-                shop_id=item.get("shopid", 0),
-                item_id=item.get("itemid", 0)
-            ),
-            shop_name=item.get("shop_name", ""),
-            location=item.get("shop_location", ""),
-            is_official_shop=bool(item.get("is_official_shop", False)),
-            score=None
-        ))
+    with open(DATA_JSONL_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+                
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
 
-    return products
+            title = item.get("title", "") or item.get("name", "")
+            
+            if keyword and keyword.lower() not in title.lower():
+                continue
+
+            try:
+                price = float(item.get("price_actual") or item.get("price") or 0)
+            except ValueError:
+                price = 0.0
+
+            try:
+                original_price = float(item.get("price_ori") or item.get("original_price") or 0)
+                original_price = original_price if original_price > 0 else None
+            except ValueError:
+                original_price = None
+
+            # Source data is USD, convert to VND for output
+            if price > 0:
+                price = _to_vnd(price)
+            if original_price:
+                original_price = _to_vnd(original_price)
+
+            try:
+                rating = float(item.get("item_rating") or item.get("rating") or 0)
+            except ValueError:
+                rating = 0.0
+
+            try:
+                sold = int(item.get("total_sold") or item.get("sold") or 0)
+            except ValueError:
+                sold = 0
+                
+            try:
+                item_id = int(item.get("id", 0))
+            except ValueError:
+                item_id = 0
+
+            discount_percent = None
+            if original_price and price < original_price:
+                discount_percent = int(round((1 - price / original_price) * 100))
+
+            product = Product(
+                item_id=item_id,
+                shop_id=0, 
+                name=title,
+                price=price,
+                original_price=original_price,
+                discount_percent=discount_percent,
+                rating=round(rating, 1),
+                sold=sold,
+                stock=999,
+                image_url=item.get("pict_link") or item.get("image_url", ""),
+                product_url=item.get("link_ori") or item.get("product_url", ""),
+                shop_name=item.get("seller_name") or item.get("shop_name", "Unknown Shop"),
+                location=item.get("location", "Vietnam"),
+                is_official_shop=False,
+                score=None
+            )
+            
+            products.append(product)
+
+            if sort_by == "relevancy" and len(products) >= limit:
+                break
+    products = _sort_products(products, sort_by)
+    return products[:limit]

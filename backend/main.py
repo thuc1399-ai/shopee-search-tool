@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers.search import router
+from backend.routers.search import router
 
 app = FastAPI(
     title="Shopee Search Tool",

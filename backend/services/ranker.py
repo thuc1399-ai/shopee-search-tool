@@ -1,4 +1,4 @@
-from models.schemas import Product
+from backend.models.schemas import Product
 
 def score_product(p: Product) -> float:
     """
