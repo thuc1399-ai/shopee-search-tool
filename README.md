@@ -76,7 +76,7 @@ curl -X POST http://localhost:8000/api/v1/search \
 - `google/flan-t5-large` tải lần đầu khoảng 3.1GB.
 - Dữ liệu mẫu đã được quy đổi USD → VND trong backend.
 ## Demo 
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/thuc1399-ai/shopee-search-tool)
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/thuc1399-ai/shopee-search-tool/)
 
 ## Video Demo : 
 [Screencast from 29-05-2026 12:38:34.webm](https://github.com/user-attachments/assets/dd14a6bd-3fae-4e65-927a-f18fb5c04e54)
