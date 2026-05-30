@@ -18,7 +18,7 @@ def simplify(item):
         # Map "shop" → "shop_name" để shopee.py đọc đúng
         "shop_name": (
             item.get("shop_name") or
-            item.get("shop", {}).get("name") or ""
+            item.get("shop", {}).get("name") or "" #jbjdcv
         ),
 
         "image_url":   item.get("image") or item.get("image_url") or "",
