@@ -1,25 +1,89 @@
-from backend.models.schemas import Product
+import asyncio
+import re
+from typing import Optional, Dict
+from deep_translator import GoogleTranslator
+from transformers import pipeline
 
-def score_product(p: Product) -> float:
-    """
-    Tính điểm tổng hợp cho sản phẩm dựa trên:
-    - Rating (40%)
-    - Lượt bán (30%)
-    - Discount (15%)
-    - Official shop bonus (15%)
-    """
-    rating_score = (p.rating or 0) / 5.0 * 40
+MODEL_NAME = "google/flan-t5-small"
+_pipeline: Optional[object] = None
 
-    # Normalize sold: cap at 10000
-    sold_score = min(p.sold / 10000, 1.0) * 30
+_STOP_WORDS = {
+    "the", "and", "of", "popular", "famous", "brands", "are", "is",
+    "some", "a", "an", "for", "in", "on", "with", "to", "or",
+    "include", "includes", "such", "as", "like", "type", "types",
+    "product", "products", "item", "items", "buy", "shop"
+}
 
-    discount_score = min((p.discount_percent or 0) / 100, 1.0) * 15
+def _get_pipeline():
+    global _pipeline
+    if _pipeline is None:
+        _pipeline = pipeline(
+            "text2text-generation",
+            model=MODEL_NAME,
+            device=-1
+        )
+    return _pipeline
 
-    official_score = 15.0 if p.is_official_shop else 0.0
+def _run_prompt(gen, prompt: str, max_tokens: int = 20) -> str:
+    try:
+        out = gen(
+            prompt,
+            max_new_tokens=max_tokens,
+            num_beams=4,
+            do_sample=False,
+            repetition_penalty=1.5,
+            no_repeat_ngram_size=2,
+        )
+        return out[0].get("generated_text", "").strip()
+    except Exception:
+        return ""
 
-    return round(rating_score + sold_score + discount_score + official_score, 2)
+def _tokenize(text: str) -> list[str]:
+    text = re.sub(r"[^a-zA-Z0-9\s]", " ", text.lower())
+    return [w for w in text.split() if w and w not in _STOP_WORDS]
 
-def rank_products(products: list[Product]) -> list[Product]:
-    for p in products:
-        p.score = score_product(p)
-    return sorted(products, key=lambda x: x.score, reverse=True)
+def _deduplicate(words: list[str], exclude: set[str]) -> list[str]:
+    seen = set(exclude)
+    result = []
+    for w in words:
+        wl = w.lower()
+        if wl not in seen and len(wl) > 1:
+            seen.add(wl)
+            result.append(w.title())
+    return result
+
+def _enhance_sync(keyword: str) -> Dict[str, str]:
+    eng_kw = keyword
+    try:
+        translated = GoogleTranslator(source="auto", target="en").translate(keyword)
+        if translated and translated.strip():
+            eng_kw = translated.strip()
+    except Exception:
+        pass
+
+    eng_kw_lower = eng_kw.lower().strip()
+    base_words = set(_tokenize(eng_kw_lower))
+
+    gen = _get_pipeline()
+    
+    raw_brands = _run_prompt(gen, f"List 3 well-known brands for: {eng_kw_lower}", 25)
+    raw_synonyms = _run_prompt(gen, f"Synonyms and alternative names for {eng_kw_lower}:", 20)
+    raw_related = _run_prompt(gen, f"Related product categories for {eng_kw_lower}:", 20)
+
+    combined_raw = f"{raw_brands} {raw_synonyms} {raw_related}"
+    all_tokens = _tokenize(combined_raw)
+    unique_expansion = _deduplicate(all_tokens, exclude=base_words)
+
+    final_expansion = " ".join(unique_expansion[:8])
+    
+    return {
+        "original": keyword,
+        "enhanced": final_expansion,
+        "translated": eng_kw_lower
+    }
+
+async def enhance_keyword(keyword: str) -> Dict[str, str]:
+    try:
+        return await asyncio.to_thread(_enhance_sync, keyword)
+    except Exception:
+        return {"original": keyword, "enhanced": "", "translated": keyword.lower()}

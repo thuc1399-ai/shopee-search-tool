@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { searchProducts } from "./api/search";
 import ProductCard from "./components/ProductCard";
 
-// ── Skeleton card shown while loading ─────────────────────────────────────
 const SkeletonCard = () => (
   <div className="animate-pulse border rounded-xl overflow-hidden bg-white shadow-sm">
     <div className="h-48 bg-gray-200" />
@@ -15,7 +14,6 @@ const SkeletonCard = () => (
   </div>
 );
 
-// ── Debounce hook ─────────────────────────────────────────────────────────
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -28,22 +26,22 @@ function useDebounce(value, delay) {
 const API_BASE = "/api/v1";
 
 export default function App() {
-  const [keyword, setKeyword]           = useState("");
-  const [useAI, setUseAI]               = useState(true);
-  const [sortBy, setSortBy]             = useState("relevancy");
-  const [result, setResult]             = useState(null);
-  const [loading, setLoading]           = useState(false);
-  const [error, setError]               = useState(null);
-  const [suggestions, setSuggestions]   = useState([]);
-  const [showSuggest, setShowSuggest]   = useState(false);
+  const [keyword, setKeyword] = useState("");
+  const [useAI, setUseAI] = useState(true);
+  const [sortBy, setSortBy] = useState("relevancy");
+  const [limit, setLimit] = useState(10);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggest, setShowSuggest] = useState(false);
   const [searchHistory, setSearchHistory] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem("search_history") || "[]"); }
     catch { return []; }
   });
-  const inputRef    = useRef(null);
-  const suggestRef  = useRef(null);
-
-  // ── Autocomplete ──────────────────────────────────────────────────────
+  
+  const inputRef = useRef(null);
+  const suggestRef = useRef(null);
   const debouncedKw = useDebounce(keyword, 250);
 
   useEffect(() => {
@@ -51,13 +49,21 @@ export default function App() {
       setSuggestions([]);
       return;
     }
-    fetch(`${API_BASE}/suggest?q=${encodeURIComponent(debouncedKw)}&limit=6`)
+    
+    const controller = new AbortController();
+    
+    fetch(`${API_BASE}/suggest?q=${encodeURIComponent(debouncedKw)}&limit=6`, {
+      signal: controller.signal
+    })
       .then(r => r.ok ? r.json() : null)
       .then(d => setSuggestions(d?.suggestions || []))
-      .catch(() => setSuggestions([]));
+      .catch(err => {
+        if (err.name !== 'AbortError') setSuggestions([]);
+      });
+      
+    return () => controller.abort();
   }, [debouncedKw]);
 
-  // Close suggestions on outside click
   useEffect(() => {
     const handler = (e) => {
       if (suggestRef.current && !suggestRef.current.contains(e.target)) {
@@ -68,17 +74,17 @@ export default function App() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // ── Search ────────────────────────────────────────────────────────────
-  const handleSearch = useCallback(async (kw = keyword) => {
+  const handleSearch = useCallback(async (kw = keyword, currentLimit = limit) => {
     const q = kw.trim();
     if (!q) return;
+    
     setShowSuggest(false);
     setLoading(true);
     setError(null);
+    
     try {
-      const data = await searchProducts({ keyword: q, useAI, sortBy });
+      const data = await searchProducts({ keyword: q, useAI, sortBy, limit: currentLimit });
       setResult(data);
-      // Save to history (max 8 entries)
       setSearchHistory(prev => {
         const next = [q, ...prev.filter(h => h !== q)].slice(0, 8);
         sessionStorage.setItem("search_history", JSON.stringify(next));
@@ -89,18 +95,23 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [keyword, useAI, sortBy]);
+  }, [keyword, useAI, sortBy, limit]);
 
   const handleSuggestClick = (s) => {
     setKeyword(s);
+    setLimit(10);
     setShowSuggest(false);
-    handleSearch(s);
+    handleSearch(s, 10);
+  };
+  
+  const loadMore = () => {
+    const newLimit = limit + 10;
+    setLimit(newLimit);
+    handleSearch(keyword, newLimit);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-white">
-
-      {/* ── Header ─────────────────────────────────────────────────── */}
       <header className="bg-orange-500 text-white py-4 px-6 shadow-lg">
         <div className="max-w-5xl mx-auto flex items-center gap-3">
           <img
@@ -116,8 +127,6 @@ export default function App() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8">
-
-        {/* ── Search box ──────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
           <div className="relative flex gap-3 mb-4" ref={suggestRef}>
             <div className="relative flex-1">
@@ -127,7 +136,7 @@ export default function App() {
                 value={keyword}
                 onChange={e => { setKeyword(e.target.value); setShowSuggest(true); }}
                 onKeyDown={e => {
-                  if (e.key === "Enter") handleSearch();
+                  if (e.key === "Enter") { setLimit(10); handleSearch(keyword, 10); }
                   if (e.key === "Escape") setShowSuggest(false);
                 }}
                 onFocus={() => setShowSuggest(true)}
@@ -135,7 +144,6 @@ export default function App() {
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
 
-              {/* Autocomplete dropdown */}
               {showSuggest && (suggestions.length > 0 || searchHistory.length > 0) && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
                   {suggestions.length > 0 && (
@@ -177,7 +185,7 @@ export default function App() {
             </div>
 
             <button
-              onClick={() => handleSearch()}
+              onClick={() => { setLimit(10); handleSearch(keyword, 10); }}
               disabled={loading}
               className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white px-6 py-3 rounded-xl font-semibold transition-all disabled:opacity-50 whitespace-nowrap"
             >
@@ -192,7 +200,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Options row */}
           <div className="flex flex-wrap gap-4 text-sm text-gray-600 items-center">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
@@ -208,7 +215,10 @@ export default function App() {
               <span className="text-gray-400 text-xs">Sắp xếp:</span>
               <select
                 value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
+                onChange={e => {
+                  setSortBy(e.target.value);
+                  setLimit(10);
+                }}
                 className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400 bg-white"
               >
                 <option value="relevancy">Liên quan nhất</option>
@@ -219,7 +229,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* ── AI info banner ──────────────────────────────────────── */}
         {result?.keyword_enhanced && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2 text-sm text-blue-700">
             <span className="text-base">✨</span>
@@ -234,11 +243,10 @@ export default function App() {
           </div>
         )}
 
-        {/* Result meta row */}
         {result && !loading && (
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-500">
-              Tìm thấy <strong className="text-gray-800">{result.total_found}</strong> sản phẩm
+              Hiển thị <strong className="text-gray-800">{result.products?.length || 0}</strong> sản phẩm
               {!result.keyword_enhanced && (
                 <span className="text-gray-400"> · {result.search_time_ms}ms</span>
               )}
@@ -246,7 +254,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Error ───────────────────────────────────────────────── */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-2">
             <span>⚠️</span>
@@ -254,17 +261,30 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Results grid ────────────────────────────────────────── */}
-        {loading ? (
+        {loading && limit === 10 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : result?.products?.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {result.products.map((p, i) => (
-              <ProductCard key={`${p.item_id}-${i}`} product={p} rank={i + 1} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {result.products.map((p, i) => (
+                <ProductCard key={`${p.item_id}-${i}`} product={p} rank={i + 1} />
+              ))}
+            </div>
+            
+            {result.products.length >= limit && (
+              <div className="mt-8 text-center">
+                 <button 
+                    onClick={loadMore}
+                    disabled={loading}
+                    className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
+                 >
+                    {loading ? "Đang tải..." : "Xem thêm sản phẩm"}
+                 </button>
+              </div>
+            )}
+          </>
         ) : result && (
           <div className="text-center py-16 text-gray-400">
             <p className="text-4xl mb-3">😕</p>
@@ -273,7 +293,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Empty state ─────────────────────────────────────────── */}
         {!result && !loading && (
           <div className="text-center py-20 text-gray-400">
             <p className="text-5xl mb-4">🛍️</p>
@@ -282,12 +301,11 @@ export default function App() {
             </p>
             <p className="text-xs text-gray-400">Hỗ trợ tìm kiếm tiếng Việt và tiếng Anh</p>
 
-            {/* Quick search chips */}
             <div className="flex flex-wrap justify-center gap-2 mt-6">
               {["tai nghe", "điện thoại samsung", "laptop gaming", "đồng hồ thông minh"].map(q => (
                 <button
                   key={q}
-                  onClick={() => { setKeyword(q); handleSearch(q); }}
+                  onClick={() => { setKeyword(q); setLimit(10); handleSearch(q, 10); }}
                   className="text-xs bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 px-3 py-1.5 rounded-full transition-colors"
                 >
                   {q}
