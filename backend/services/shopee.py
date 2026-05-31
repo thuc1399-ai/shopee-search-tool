@@ -15,7 +15,7 @@ load_dotenv()
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-DATA_JSONL_PATH = Path("/mnt/hdd1tb/GS_Test/shopee-search-tool/data/shopee_sample.jsonl")
+DATA_JSONL_PATH = REPO_ROOT / "data" / "shopee_sample.jsonl"
 
 USD_TO_VND_RATE = float(os.getenv("USD_TO_VND_RATE", "25000"))
 _MAX_USD_PRICE = 50_000.0
